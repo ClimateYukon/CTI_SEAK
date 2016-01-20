@@ -1,3 +1,10 @@
+# Some gotchas and todo : 
+# As for now the cropping must be done by hand as the mask's origin doesn't fit exactly the params of 
+# the output file causing issues when cropping the extent.
+# Some of the masks had to be edited as the value (0-1) were miscoded or inverted. Todo : clean input folders and clarify
+# the modofications needed. Todo build some tests to make sure this doesn't happen anymore.
+
+
 def crop( large, small, output_name, output_path= None,compress=False, *args, **kwargs ):
 	'''
 	crop a larger raster by a smaller overlapping one.
@@ -137,7 +144,6 @@ def processing() :
 	os.system('mpirun -n 32 dinfflowdir -fel %s -slp %s -ang %s' %(os.path.join(out,'AKPCTR_NoIceSeam.tif') , os.path.join(out,'AKPCTR_NoIceSeam_slp.tif') , os.path.join(out,'AKPCTR_NoIceSeam_ang.tif') ))
 
 	#Reclass the slope raster from 0 to 0.0001
-	#slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIceSeam_slp.tif'),os.path.join(out,'AKPCTR_NoIceSeam_slp.tif'),-1,nodata_value)
 	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIceSeam_slp.tif'),os.path.join(out,'AKPCTR_NoIceSeam_No0slp.tif'),0,0.0001)
 
 	#Run the contributing area taudem algorithm
@@ -161,7 +167,6 @@ def processing() :
 	os.system('mpirun -n 32 dinfflowdir -fel %s -slp %s -ang %s'%(os.path.join(out,'AKPCTR_NoIce.tif') , os.path.join(out,'AKPCTR_NoIce_slp.tif') , os.path.join(out,'AKPCTR_NoIce_ang.tif') ))
 
 	#Reclass the slope raster from 0 to 0.0001
-
 	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIce_slp.tif'),os.path.join(out,'AKPCTR_NoIce_No0slp.tif'),0,0.0001)
 
 	#Run the contributing area taudem algorithm
