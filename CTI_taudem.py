@@ -108,16 +108,6 @@ def quality_mask(base_DEM, fel , NoIce , output):
 	with rasterio.open(output, "w", **meta) as dst :
 		dst.write_band(1,fel_arr.astype(rasterio.float32))
 
-
-def nodata(raster):
-	with rasterio.drivers() :
-
-		rast = rasterio.open( raster ).read( 1 )
-		meta = rasterio.open(raster).meta
-		meta.update(nodata=nodata_value)
-		with rasterio.open(i, "w", **meta) as dst :
-			dst.write_band(1,rast.astype(rasterio.float32))
-
 def CTI(sca,slp,cti) :
 	with rasterio.drivers() :
 		sca_arr = rasterio.open(sca).read(1)
