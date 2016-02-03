@@ -55,31 +55,28 @@ def mask_rasters(base_raster , mask_raster , mask_value , output , new_value=Non
 		'''
 		base_arr[ mask_arr == mask_value ] = new_value
 		return base_arr
-
+	print 'Masking raster'
 	mask_arr_list = [ rasterio.open( path ).read( 1 ) for path in mask_raster ]
 	base_arr = rasterio.open( base_raster ).read( 1 )
 	meta = rasterio.open( base_raster ).meta
 
-	if new_value == None :
-		new_value = meta['nodata']
-	else :
-		meta.update(nodata=new_value)
-		pass
-
-	meta.update( crs={'init':'epsg:26931'} )
+	meta.update( crs={'init':'epsg:26931'}, nodata=nodata_value )
 
 	for mask_arr in mask_arr_list:
 		base_arr = replace_masked_values( base_arr, mask_arr, mask_value, new_value )
 
+	base_arr[base_arr < -1000] = nodata_value
 	print 'Writing masked array'
 	print meta['nodata']
+	print base_arr.min()
 
 	with rasterio.open( output, 'w', **meta ) as out:
 		out.write( base_arr, 1 )
 
-def slope_reclasser(base_DEM,slope_file,output,origin_value,target_value):
+def slope_reclasser(base_DEM , slope_file , output , origin_value , target_value ):
 	''' This function just reclass the slope's 0 data with 0.001 so it doesn't impact the following steps
 	'''
+	print 'Reclassing slope'
 	with rasterio.drivers() :
 
 		#Open both the slope and contributing area maps
@@ -89,36 +86,34 @@ def slope_reclasser(base_DEM,slope_file,output,origin_value,target_value):
 		sl_arr[sl_arr<= -1] = nodata_value
 		meta = rasterio.open( base_DEM ).meta
 				
-		print 'Writing reclassed slope'
+		
 		meta.update( crs={'init':'epsg:26931'}, nodata=nodata_value )
 
 		with rasterio.open(output, "w", **meta) as dst :
 			dst.write_band(1,sl_arr.astype(rasterio.float32))
 
-def quality_mask(base_DEM, fel , NoIce , output):
 
-	fel_arr = rasterio.open(fel).read(1)
-	sca_arr = rasterio.open(NoIce).read(1)
-	fel_arr[sca_arr != -1] = nodata_value
-	fel_arr[fel_arr <= 0] = nodata_value
+def smoothing_data(raster , origin_value , new_value , method='='):
+	Print 'Smoothing data on : %s' %raster
 
-	meta = rasterio.open( base_DEM ).meta
-	meta.update( crs={'init':'epsg:26931'} )
-
-	with rasterio.open(output, "w", **meta) as dst :
-		dst.write_band(1,fel_arr.astype(rasterio.float32))
-
-
-def nodata(raster):
 	with rasterio.drivers() :
 
-		rast = rasterio.open( raster ).read( 1 )
+		rast_arr = rasterio.open( raster ).read( 1 )
+		if method == '=':
+			rast_arr[rast_arr == origin_value] = new_value
+		elif method  == '<=' : 
+			rast_arr[rast_arr <= origin_value] = new_value
+		elif method  == '>=' : 
+			rast_arr[rast_arr >= origin_value] = new_value
+
 		meta = rasterio.open(raster).meta
-		meta.update(nodata=nodata_value)
-		with rasterio.open(i, "w", **meta) as dst :
-			dst.write_band(1,rast.astype(rasterio.float32))
+		meta.update( nodata = new_value )
+
+		with rasterio.open(os.path.join(out,'Base_DEM.tif'), "w", **meta) as dst :
+			dst.write_band(1,rast_arr.astype(rasterio.float32))
 
 def CTI(sca,slp,cti) :
+	print 'Computing CTI'
 	with rasterio.drivers() :
 		sca_arr = rasterio.open(sca).read(1)
 		slp_arr = rasterio.open(slp).read(1)
@@ -126,6 +121,7 @@ def CTI(sca,slp,cti) :
 
 		tmp = np.log(sca_arr/slp_arr)
 		tmp[tmp < -1] = nodata_value
+		tmp[np.isnan(tmp)] = nodata_value
 		meta.update( crs={'init':'epsg:26931'}, nodata=nodata_value )
 
 		with rasterio.open(cti, "w", **meta) as dst :
@@ -133,28 +129,26 @@ def CTI(sca,slp,cti) :
 
 def processing() :
 
-
-	#Crop with a 10k buffer so we dont use Atlas for 24h calculation flat area on the sea
-	mask_rasters(base_DEM, [buff_raster10k],1,os.path.join(out,'AKPCTR_DEM4k.tif'))
-
+	smoothing_data(base_DEM , -1000, nodata_value , '<=')
 	#Compute pit filling Taudem algorithm
-	os.system('mpirun -n 32 pitremove -z %s -fel %s'%( os.path.join(out,'AKPCTR_DEM4k.tif') , os.path.join(out,'AKPCTR_DEMfel.tif') ))
+
+	os.system('mpirun -n 32 pitremove -z %s -fel %s'%( os.path.join(out,'Base_DEM.tif') , os.path.join(out,'AKPCTR_DEMfel.tif') ))
 
 	# Mask the glaciers as proposed by Frances
-	mask_rasters(os.path.join(out,'AKPCTR_DEMfel.tif'), [ glacier , seam ],1,os.path.join(out,'AKPCTR_NoIceSeam.tif'))
+	mask_rasters(os.path.join(out,'AKPCTR_DEMfel.tif'), [ glacier , seam ],1,os.path.join(out,'AKPCTR_NoIceSeam.tif'),nodata_value)
 
 	#Run the flow direction taudem algorithm 
 	os.system('mpirun -n 32 dinfflowdir -fel %s -slp %s -ang %s' %(os.path.join(out,'AKPCTR_NoIceSeam.tif') , os.path.join(out,'AKPCTR_NoIceSeam_slp.tif') , os.path.join(out,'AKPCTR_NoIceSeam_ang.tif') ))
 
 	#Reclass the slope raster from 0 to 0.0001
-	#slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIceSeam_slp.tif'),os.path.join(out,'AKPCTR_NoIceSeam_slp.tif'),-1,nodata_value)
 	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIceSeam_slp.tif'),os.path.join(out,'AKPCTR_NoIceSeam_No0slp.tif'),0,0.0001)
 
 	#Run the contributing area taudem algorithm
 	os.system('mpirun -n 32 areadinf -ang %s -sca %s'%(os.path.join(out,'AKPCTR_NoIceSeam_ang.tif') , os.path.join(out,'AKPCTR_NoIceSeam_sca.tif') ))
 
+	smoothing_data(os.path.join(out,'AKPCTR_NoIceSeam_sca.tif'),-1, nodata_value)
+
 	#Run the actual TWI calculation
-	#os.system('mpirun -n 32 twi -sca %s -slp %s -twi %s'%(os.path.join(out,'AKPCTR_NoIceSeam_sca.tif'), os.path.join(out,'AKPCTR_NoIceSeam_No0slp.tif') , os.path.join(out,'CTI_NoIceSeam_1.tif') ))
 	CTI(os.path.join(out,'AKPCTR_NoIceSeam_sca.tif'),os.path.join(out,'AKPCTR_NoIceSeam_No0slp.tif'),os.path.join(out,'CTI_NoIceSeam_full.tif'))
 
 	# #Clip the CTI raster by land mask
@@ -167,7 +161,7 @@ def processing() :
 	print 'Second part'
 	#Run the flow direction taudem algorithm 
 	
-	mask_rasters(os.path.join(out,'AKPCTR_DEMfel.tif'), [ glacier ],1,os.path.join(out,'AKPCTR_NoIce.tif'))
+	mask_rasters(os.path.join(out,'AKPCTR_DEMfel.tif'), [ glacier ],1,os.path.join(out,'AKPCTR_NoIce.tif'),nodata_value)
 	os.system('mpirun -n 32 dinfflowdir -fel %s -slp %s -ang %s'%(os.path.join(out,'AKPCTR_NoIce.tif') , os.path.join(out,'AKPCTR_NoIce_slp.tif') , os.path.join(out,'AKPCTR_NoIce_ang.tif') ))
 
 	#Reclass the slope raster from 0 to 0.0001
@@ -176,9 +170,9 @@ def processing() :
 
 	#Run the contributing area taudem algorithm
 	os.system('mpirun -n 32 areadinf -ang %s -sca %s' %(os.path.join(out,'AKPCTR_NoIce_ang.tif') , os.path.join(out,'AKPCTR_NoIce_sca.tif') ))
+	smoothing_data(os.path.join(out,'AKPCTR_NoIce_sca.tif'),-1, nodata_value)
 
 	#Run the actual TWI calculation
-	#os.system('mpirun -n 32 twi -sca %s -slp %s -twi %s'%(os.path.join(out,'AKPCTR_sca.tif') , os.path.join(out,'AKPCTR_No0slp.tif'), os.path.join(out,'CTI_1.tif') ))
 	CTI(os.path.join(out,'AKPCTR_NoIce_sca.tif'),os.path.join(out,'AKPCTR_NoIce_No0slp.tif'),os.path.join(out,'CTI_NoIce_full.tif'))
 
 	#Clip the CTI raster by land mask
@@ -194,15 +188,14 @@ if __name__ == '__main__':
 
 	#set some reference files
 
-	buff_raster10k = '/workspace/Shared/Users/jschroder/CTI_ref/Buffer_raster.tif'
+
 	buff_raster4k = '/workspace/Shared/Users/jschroder/CTI_ref/Buffer_rasterFR.tif'
-	#buff_raster4k = '/workspace/Shared/Users/jschroder/CTI_ref/AKPCTR_WS_Outline_4kmBuffcor.tif'
 	base_DEM = '/workspace/Shared/Users/jschroder/CTI_ref/AKPCTR_DEMcor.tif'
-	out = '/workspace/Shared/Users/jschroder/New_approach_finalebuilt/'
+	out = '/workspace/Shared/Users/jschroder/FIX3/'
 	if not os.path.exists( out ):
 		os.mkdir( out )
 
-	nodata_value = -9999
+	nodata_value = -9999.0
 	glacier = '/workspace/Shared/Users/jschroder/CTI_ref/RGI_v5_AKPCTR_NewExtent.tif'
 	seam = '/workspace/Shared/Users/jschroder/CTI_ref/Seam3000_NewExtent.tif'
 
