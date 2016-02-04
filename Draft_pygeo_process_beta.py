@@ -25,7 +25,15 @@
 #           - Clean up variables
 #           - Would be cool to not rely on IO but can dream about that, or ask pygeo creator
 
+# IN ORDER TO MAKE THIS WORK, YOU NEED TO HAVE TAUDEM INSTALLED AND ATLAS SET UP WITH THOSE LINES :
+#                   salloc -p devel -N 1 -w atlas02 --exclusive
+#                   srun -p devel -N 1 --pty /bin/bash 
 
+#then for heavy process, it would be smart to use fast_scratch in order to avoid I/O time getting crazy that can be done like that :
+#                    cp /workspace/UA/jschroder/CTI_Frances/data/Full_dataset/Akfilled.tif /fast_scratch/jschroder/
+#                    cp /workspace/UA/jschroder/CTI_Frances/data/Full_dataset/AKplanefullSEAK.tif /fast_scratch/jschroder/
+
+#After process is done you have to run squeue to identify the JOBID and qdel it
 
 
 
@@ -208,9 +216,11 @@ def download_dem( watersheds , NLCD_grid) :
 
 
 def CTI_preprocessing(DEM):
-'''This function WILL fill pits (when algorithm will be available) and then calculate : slope, flow accumulation and flow direction'''
+    '''This function WILL fill pits (when algorithm will be available) and then calculate : slope, flow accumulation and flow direction'''
+    
     #first of first : take the dem and fill the pits - not working yet
-    #pygeoprocessing.routing.fill_pits(init, dem_uri)
+    #os.system('mpirun -n 32 pitremove -z /fast_scratch/jschroder/AKplanefullSEAK.tif -fel /fast_scratch/jschroder/Akfilled.tif')
+    mpirun -n 32 dinfflowdir -fel AKPCTR_DEM_filled.tif    #pygeoprocessing.routing.fill_pits(init, dem_uri)
 
     #Memory block the dem
     #As 21st of May this command doesn't work because of a small issues. in order to fix that we need 
@@ -294,7 +304,7 @@ def CTI_calculation(flow_accumulation_uri, slope):
         cti[cti < -1] = -9999
 
         #Write to disk
-        kwargs = ca.meta  
+        kwargs = fa.meta  
         with rasterio.open("CTI_pygeoprocessing.tif", "w", **kwargs) as dst :
             dst.write_band(1,cti.astype(rasterio.float32))
 
@@ -314,16 +324,22 @@ def Compute_CTI(base_watershed, NLCD_grid):
 
 
 #for TAUDEM output no need to use pixel size as we already have the contributing area.
-#Easily flaggable
+
 import pygeoprocessing.routing
 import pygeoprocessing.geoprocessing
 import numpy as np
 import rasterio, os, sys, math
 import os.path
 
-slope = "DEM_3338_cropedslp.tif"
-contributing_area = 'DEM_3338_cropedsca.tif'
-os.chdir ('/home/UA/jschroder/Documents/Process_big_pygeo/taudem')
+os.system('mpirun -n 32 pitremove -z /fast_scratch/jschroder/CTI2/AKPCTR_DEM.tif -fel /fast_scratch/jschroder/CTI2/AKPCTR_DEMfel.tif')
+#os.system('mpirun -n 32 dinfflowdir -fel /fast_scratch/jschroder/ AKPCTR_DEM_filled.tif')
+os.system('mpirun -n 32 dinfflowdir -fel /fast_scratch/jschroder/CTI_input/AKPCTR_DEMfel.tif -slp /fast_scratch/jschroder/CTI_input/AKPCTR_DEMslp.tif -ang /fast_scratch/jschroder/CTI_input/AKPCTR_DEMflw.tif')
+os.system('mpirun -n 32 areadinf -ang /fast_scratch/jschroder/CTI_input/AKPCTR_DEMflw.tif -sca /fast_scratch/jschroder/CTI_input/AKPCTR_DEMca.tif')
+os.system('mpirun -n 32 twi -sca /fast_scratch/jschroder/CTI_input/AKPCTR_DEMca.tif -slp /fast_scratch/jschroder/CTI_input/AKPCTR_DEMslp.tif -twi /fast_scratch/jschroder/CTI_input/AKPCTR_DEMcti.tif')
+
+slope = '/workspace/Shared/Users/jschroder/CTI_input/AKPCTR_DEMslp.tif'
+contributing_area = "/workspace/Shared/Users/jschroder/CTI_input/AKPCTR_DEMca.tif"
+
 
 with rasterio.drivers() :
 
@@ -358,5 +374,15 @@ with rasterio.drivers() :
     cti = np.log(ca_arr/tmp3)
 
     kwargs = ca.meta  
-    with rasterio.open("CTI_TAUDEM.tif", "w", **kwargs) as dst :
+    with rasterio.open("/workspace/Shared/Users/jschroder/CTI_input/DEM-glaciercti.tif", "w", **kwargs) as dst :
         dst.write_band(1,cti.astype(rasterio.float32))
+
+
+
+#Run with just taudem in Atlas
+import os
+os.system('mpirun -n 32 pitremove -z /fast_scratch/jschroder/CTI_input/AKPCTR_DEM.tif -fel /fast_scratch/jschroder/CTI_input/AKPCTR_DEMfel.tif')
+#os.system('mpirun -n 32 dinfflowdir -fel /fast_scratch/jschroder/ AKPCTR_DEM_filled.tif')
+os.system('mpirun -n 32 dinfflowdir -fel /fast_scratch/jschroder/CTI_input/AKPCTR_DEMfel.tif -slp /fast_scratch/jschroder/CTI_input/AKPCTR_DEMslp.tif -ang /fast_scratch/jschroder/CTI_input/AKPCTR_DEMflw.tif')
+os.system('mpirun -n 32 areadinf -ang /fast_scratch/jschroder/CTI_input/AKPCTR_DEMflw.tif -sca /fast_scratch/jschroder/CTI_input/AKPCTR_DEMca.tif')
+os.system('mpirun -n 32 twi -sca /fast_scratch/jschroder/CTI_input/AKPCTR_DEMca.tif -slp /fast_scratch/jschroder/CTI_input/AKPCTR_DEMslp.tif -twi /fast_scratch/jschroder/CTI_input/AKPCTR_DEMcti.tif')

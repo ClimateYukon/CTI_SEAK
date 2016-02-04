@@ -1,48 +1,57 @@
-def crop( large, small, output_name, output_path= None,compress=False, *args, **kwargs ):
-	'''
-	crop a larger raster by a smaller overlapping one.
-	this function assumes the 2 rasters are in the same CRS
-	arguments:
-	----------
-	large_rst = rasterio.raster object of the larger raster to be cropped
-	small_rst = rasterio.raster object of the smaller raster used to crop the larger
-	output_path = [optional] string path to directory to output the new GTiff created. 
-		if None, it will be the directory of the large_rst.
-	compress = boolean. Default = True.  If True lzw-compress. if False do not.
-	returns:
-	--------
-	path to the newly generated cropped raster.  With the side-effect of outputting the 
-	raster to disk.
-	notes:
-	------
-	potential gotcha here is that it will only work on a single banded raster.
-	'''
-	large_rst = rasterio.open( large )
-	small_rst = rasterio.open( small )
 
-	window = large_rst.window( *small_rst.bounds )
-	crop_affine = large_rst.window_transform( window )
-	window_arr = large_rst.read( 1, window=window )
-	# make a new meta object to pass to the cropped raster
-	height, width = window_arr.shape
-	meta = small_rst.meta
-	meta.update( affine=crop_affine,
-				height=height,
-				width=width,
-				nodata=large_rst.nodata,
-				crs=large_rst.crs,
-				count=1,
-				dtype=large_rst.dtypes[0] )
 
-	if output_path:
-		output_filename = os.path.join( output_path, output_name )
-	else:
-		output_path = os.path.dirname( large_rst.name )
-		output_filename = os.path.join( output_path, output_name )
 
-	with rasterio.open( output_filename, 'w', **meta ) as out:
-		out.write( window_arr, 1 )
-	return output_filename
+
+# Crop is non functionnal as for now due to the irregularity of the input data set in terms of pixel size
+# We should preprocess all input dataset to make them match the same extent, pixel size and origin before using crop
+# ArcGIS will do for now.
+
+# def crop( large, small, output_name, output_path= None,compress=False, *args, **kwargs ):
+# 	'''
+# 	crop a larger raster by a smaller overlapping one.
+# 	this function assumes the 2 rasters are in the same CRS
+# 	arguments:
+# 	----------
+# 	large_rst = rasterio.raster object of the larger raster to be cropped
+# 	small_rst = rasterio.raster object of the smaller raster used to crop the larger
+# 	output_path = [optional] string path to directory to output the new GTiff created. 
+# 		if None, it will be the directory of the large_rst.
+# 	compress = boolean. Default = True.  If True lzw-compress. if False do not.
+# 	returns:
+# 	--------
+# 	path to the newly generated cropped raster.  With the side-effect of outputting the 
+# 	raster to disk.
+# 	notes:
+# 	------
+# 	potential gotcha here is that it will only work on a single banded raster.
+# 	'''
+# 	print 'Cropping to match extent'
+# 	large_rst = rasterio.open( large )
+# 	small_rst = rasterio.open( small )
+
+# 	window = large_rst.window( *small_rst.bounds )
+# 	crop_affine = large_rst.window_transform( window )
+# 	window_arr = large_rst.read( 1, window=window )
+# 	# make a new meta object to pass to the cropped raster
+# 	height, width = window_arr.shape
+# 	meta = small_rst.meta
+# 	meta.update( affine=crop_affine,
+# 				height=height,
+# 				width=width,
+# 				nodata=large_rst.nodata,
+# 				crs=large_rst.crs,
+# 				count=1,
+# 				dtype=large_rst.dtypes[0] )
+
+# 	if output_path:
+# 		output_filename = os.path.join( output_path, output_name )
+# 	else:
+# 		output_path = os.path.dirname( large_rst.name )
+# 		output_filename = os.path.join( output_path, output_name )
+
+# 	with rasterio.open( output_filename, 'w', **meta ) as out:
+# 		out.write( window_arr, 1 )
+# 	return output_filename
 
 def mask_rasters(base_raster , mask_raster , mask_value , output , new_value=None):
 	''' Function built to mask a raster with another raster. The Function takes a mask_raster or a list
@@ -66,9 +75,6 @@ def mask_rasters(base_raster , mask_raster , mask_value , output , new_value=Non
 		base_arr = replace_masked_values( base_arr, mask_arr, mask_value, new_value )
 
 	base_arr[base_arr < -1000] = nodata_value
-	print 'Writing masked array'
-	print meta['nodata']
-	print base_arr.min()
 
 	with rasterio.open( output, 'w', **meta ) as out:
 		out.write( base_arr, 1 )
@@ -85,7 +91,6 @@ def slope_reclasser(base_DEM , slope_file , output , origin_value , target_value
 		sl_arr[sl_arr == origin_value ] = target_value
 		sl_arr[sl_arr<= -1] = nodata_value
 		meta = rasterio.open( base_DEM ).meta
-				
 		
 		meta.update( crs={'init':'epsg:26931'}, nodata=nodata_value )
 
@@ -94,7 +99,7 @@ def slope_reclasser(base_DEM , slope_file , output , origin_value , target_value
 
 
 def smoothing_data(raster , origin_value , new_value , method='='):
-	Print 'Smoothing data on : %s' %raster
+	print 'Smoothing data on : %s' %raster
 
 	with rasterio.drivers() :
 
@@ -129,9 +134,10 @@ def CTI(sca,slp,cti) :
 
 def processing() :
 
+	#Smoothing, making sure that we don't have two nodata values as this was an issue
 	smoothing_data(base_DEM , -1000, nodata_value , '<=')
-	#Compute pit filling Taudem algorithm
 
+	#Compute pit filling Taudem algorithm
 	os.system('mpirun -n 32 pitremove -z %s -fel %s'%( os.path.join(out,'Base_DEM.tif') , os.path.join(out,'AKPCTR_DEMfel.tif') ))
 
 	# Mask the glaciers as proposed by Frances
@@ -146,14 +152,18 @@ def processing() :
 	#Run the contributing area taudem algorithm
 	os.system('mpirun -n 32 areadinf -ang %s -sca %s'%(os.path.join(out,'AKPCTR_NoIceSeam_ang.tif') , os.path.join(out,'AKPCTR_NoIceSeam_sca.tif') ))
 
+	#Smoothing, making sure that we don't have two nodata values as this was an issue
 	smoothing_data(os.path.join(out,'AKPCTR_NoIceSeam_sca.tif'),-1, nodata_value)
 
 	#Run the actual TWI calculation
 	CTI(os.path.join(out,'AKPCTR_NoIceSeam_sca.tif'),os.path.join(out,'AKPCTR_NoIceSeam_No0slp.tif'),os.path.join(out,'CTI_NoIceSeam_full.tif'))
 
-	# #Clip the CTI raster by land mask
-	#crop( os.path.join(out,'CTI_NoIceSeam_full.tif'), buff_raster4k, os.path.join(out,'CTI_NoIceSeam_1.tif'))
-	mask_rasters(os.path.join(out,'CTI_NoIceSeam_full.tif'), [buff_raster4k],1,os.path.join(out,'CTI_NoIceSeam.tif'),nodata_value)
+	# # #Mask the CTI raster by land mask
+	mask_rasters(os.path.join(out,'CTI_NoIceSeam_full.tif'), [buff_raster4k],1,os.path.join(out,'CTI_NoIceSeam_Fullext.tif'),nodata_value)
+	#os.system('gdalwarp -wo NUM_THREADS=ALL_CPUS -srcnodata -9999 -dstnodata -9999 -cutline %s -crop_to_cutline -of GTiff %s %s' % (extent, os.path.join(out,'CTI_NoIceSeam_Fullext.tif') , os.path.join(out,'CTI_NoIceSeam2.tif')))
+
+	#Rely on ArcGIS for the actual cliping
+
 
 
 	#################################### Second part #######################################
@@ -170,15 +180,18 @@ def processing() :
 
 	#Run the contributing area taudem algorithm
 	os.system('mpirun -n 32 areadinf -ang %s -sca %s' %(os.path.join(out,'AKPCTR_NoIce_ang.tif') , os.path.join(out,'AKPCTR_NoIce_sca.tif') ))
+
+		#Smoothing, making sure that we don't have two nodata values as this was an issue
 	smoothing_data(os.path.join(out,'AKPCTR_NoIce_sca.tif'),-1, nodata_value)
 
 	#Run the actual TWI calculation
 	CTI(os.path.join(out,'AKPCTR_NoIce_sca.tif'),os.path.join(out,'AKPCTR_NoIce_No0slp.tif'),os.path.join(out,'CTI_NoIce_full.tif'))
 
-	#Clip the CTI raster by land mask
-	#crop( os.path.join(out,'CTI_NoIce_full.tif'), buff_raster4k, os.path.join(out,'CTI_NoIce_1.tif'))
-	mask_rasters(os.path.join(out,'CTI_NoIce_full.tif'), [buff_raster4k],1,os.path.join(out,'CTI_NoIce.tif'),nodata_value)
+	#Mask the CTI raster by land mask
+	mask_rasters(os.path.join(out,'CTI_NoIce_full.tif'), [buff_raster4k],1,os.path.join(out,'CTI_NoIce_Fullext.tif'),nodata_value)
+	#os.system('gdalwarp -wo NUM_THREADS=ALL_CPUS -srcnodata -9999 -dstnodata -9999 -cutline %s -crop_to_cutline -of GTiff %s %s' % (extent, os.path.join(out,'CTI_NoIce_Fullext.tif') , os.path.join(out,'CTI_NoIce2.tif')))
 
+	#Rely on ArcGIS for the actual cliping
 
 
 if __name__ == '__main__':
@@ -189,7 +202,7 @@ if __name__ == '__main__':
 	#set some reference files
 
 
-	buff_raster4k = '/workspace/Shared/Users/jschroder/CTI_ref/Buffer_rasterFR.tif'
+	buff_raster4k = '/workspace/Shared/Users/jschroder/TMP/AKPCTR_4km.tif'
 	base_DEM = '/workspace/Shared/Users/jschroder/CTI_ref/AKPCTR_DEMcor.tif'
 	out = '/workspace/Shared/Users/jschroder/FIX3/'
 	if not os.path.exists( out ):
@@ -198,7 +211,7 @@ if __name__ == '__main__':
 	nodata_value = -9999.0
 	glacier = '/workspace/Shared/Users/jschroder/CTI_ref/RGI_v5_AKPCTR_NewExtent.tif'
 	seam = '/workspace/Shared/Users/jschroder/CTI_ref/Seam3000_NewExtent.tif'
-
+	extent = '/workspace/Shared/Users/jschroder/CTI_ref/extent.shp'
 	#set path for Taudem EXE
 	os.chdir('/home/UA/jschroder/TauDEM/')
 
