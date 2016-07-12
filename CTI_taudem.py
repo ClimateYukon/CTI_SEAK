@@ -164,7 +164,7 @@ if __name__ == '__main__':
 	nodata_value = -9999.0
 
 	# Area of Interest buffered by 4 kilometers, used for masking during the final step
-	buff_raster4k = '/workspace/Shared/Users/jschroder/CTI/data/CTI_ref/AKPCTR_WS_Outline_4kfinale.tif'
+	buff_raster4k = '/workspace/Shared/Users/jschroder/CTI/data/CTI_ref/AKPCTR_4km.tif'
 
 	#Output folder
 	out = '/workspace/Shared/Users/jschroder/CTI_final/'

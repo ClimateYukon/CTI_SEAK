@@ -153,7 +153,7 @@ if __name__ == '__main__':
 
 	#set some reference files
 	#buff_raster4k = '/workspace/Shared/Users/jschroder/TMP/AKPCTR_4km.tif'
-	buff_raster4k = '/workspace/Shared/Users/jschroder/CTI/data/CTI_ref/AKPCTR_WS_Outline_4kfinale.tif'
+	buff_raster4k = '/workspace/Shared/Users/jschroder/CTI/data/CTI_ref/AKPCTR_4km.tif'
 	base_DEM = '/workspace/Shared/Users/jschroder/CTI/data/CTI_ref/AKPCTR_DEMcor.tif'
 	out = '/workspace/Shared/Users/jschroder/TRY_AKPCTR_WS_Outline_4kfinale_newTAUDEM/'
 	if not os.path.exists( out ):
