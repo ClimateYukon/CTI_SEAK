@@ -1,6 +1,6 @@
 
 #This script was written in order to take advantage of  multicores linux machine as a faster alternative to the use of ARCGIS and TAUDEM
-#The version of TAUDEM used in this code is : V5.1
+#The version of TAUDEM used in this code is : V5.3.5
 
 def mask_raster(tif_file, shps , output_file , crop = False , invert = False) :
 	'''Using rasterio to mask the rasters with a shapefile'''
