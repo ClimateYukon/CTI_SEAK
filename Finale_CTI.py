@@ -81,7 +81,7 @@ def processing() :
 	os.system('mpirun -n %d ./dinfflowdir -fel %s -slp %s -ang %s' %(cpu , os.path.join(out,'AKPCTR_DEMfel.tif') , os.path.join(out,'AKPCTR_Nomask_slp.tif') , os.path.join(out,'AKPCTR_Nomask_ang.tif') ))
 
 	#Reclass the slope raster from 0 to 0.0001
-	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_Nomask_slp.tif'),os.path.join(out,'AKPCTR_Nomask_No0slp.tif'),0,0.0001)
+	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_Nomask_slp.tif'),os.path.join(out,'AKPCTR_Nomask_No0slp.tif'),0,0.001)
 
 	#Run the contributing area taudem algorithm
 	os.system('mpirun -n %d ./areadinf -ang %s -sca %s'%(cpu,os.path.join(out,'AKPCTR_Nomask_ang.tif') , os.path.join(out,'AKPCTR_Nomask_sca.tif') ))
@@ -108,7 +108,7 @@ def processing() :
 	os.system('mpirun -n %d ./dinfflowdir -fel %s -slp %s -ang %s'%(cpu,os.path.join(out,'AKPCTR_NoIce.tif') , os.path.join(out,'AKPCTR_NoIce_slp.tif') , os.path.join(out,'AKPCTR_NoIce_ang.tif') ))
 
 	# Reclass the slope raster from 0 to 0.0001
-	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIce_slp.tif'),os.path.join(out,'AKPCTR_NoIce_No0slp.tif'),0,0.0001)
+	slope_reclasser(base_DEM,os.path.join(out,'AKPCTR_NoIce_slp.tif'),os.path.join(out,'AKPCTR_NoIce_No0slp.tif'),0,0.001)
 
 	# Run the contributing area taudem algorithm
 	os.system('mpirun -n %d ./areadinf -ang %s -sca %s' %(cpu,os.path.join(out,'AKPCTR_NoIce_ang.tif') , os.path.join(out,'AKPCTR_NoIce_sca.tif') ))
